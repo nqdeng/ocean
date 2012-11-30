@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="Horizon.addon" default="build" basedir=".">
+
+	<target name="load.properties">
+		<property file="build.properties" />
+	</target>
+
+	<target name="init" depends="load.properties,clean">
+		<mkdir dir="${build.dir}" />
+	</target>
+	
+	<target name="build" depends="init">
+		<concat destfile="${build.dir}/ocean.js" encoding="UTF-8" fixlastline="true">
+			<filelist dir="${src.dir}">
+				<file name="_head.js" />
+				<file name="config.js" />
+				<file name="util.js" />
+				<file name="loader.js" />
+				<file name="manager.js" />
+				<file name="aspect.js" />
+				<file name="bootstrap.js" />
+				<file name="_tail.js" />
+			</filelist>
+		</concat>
+		
+		<concat destfile="${build.dir}/plugin-combo.js" encoding="UTF-8" fixlastline="true">
+			<filelist dir="${src.dir}/plugins">
+				<file name="plugin-combo.js" />
+			</filelist>
+		</concat>
+		
+		<concat destfile="${build.dir}/plugin-lazy.js" encoding="UTF-8" fixlastline="true">
+			<filelist dir="${src.dir}/plugins">
+				<file name="plugin-lazy.js" />
+			</filelist>
+		</concat>
+	</target>
+	
+	<target name="clean" depends="load.properties">
+		<delete dir="${build.dir}" quiet="true" />
+	</target>
+	
+</project>
