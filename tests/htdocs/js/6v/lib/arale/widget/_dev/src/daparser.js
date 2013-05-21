@@ -1,0 +1,1 @@
+define("js/6v/lib/arale/widget/_dev/src/daparser.js",["js/6v/lib/gallery/jquery/jquery.js"], function () {});

@@ -1,0 +1,1 @@
+define("js/6v/lib/arale/calendar/_dev/src/calendar-tpl.js",[], function () {});

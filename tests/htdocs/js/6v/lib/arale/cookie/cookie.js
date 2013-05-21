@@ -1,0 +1,1 @@
+define("js/6v/lib/arale/cookie/cookie.js",["js/6v/lib/arale/cookie/_dev/src/cookie.js"], function () {});

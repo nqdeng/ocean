@@ -11,7 +11,9 @@
 var config = {
 		alias: {},
 		base: location.protocol + '//' + location.hostname + '/',
-		charset: 'utf-8'
+		charset: 'utf-8',
+		preload: [],
+		vars: {}
 	};
 
 // Build-in utility functions.
@@ -129,6 +131,51 @@ var util = (function () {
 	return util;
 }());
 
+// Error isolation sandbox.
+var sandbox = (function () {
+	var queue = [],
+
+		head = document.getElementsByTagName('head')[0],
+
+		base = head.getElementsByTagName('base')[0],
+
+		exports = {
+			/**
+			 * Run function in sandbox.
+			 * @param fn {Function}
+			 * @param context {Object|null}
+			 * @param args {Array}
+			 */
+			run: function (fn, context, args) {
+				var el = document.createElement('script');
+
+				el.text = GLOBAL_VAR_NAME + '._exec()';
+				queue.push([ fn, context || null, args || [] ]);
+
+				// Execute code synchronously.
+				if (base) { // Avoid a known bug in IE6.
+					head.insertBefore(el, base);
+				} else {
+					head.appendChild(el);
+				}
+
+				// Clean up.
+				head.removeChild(el);
+			},
+
+			/**
+			 * Trigger sandbox.
+			 * This function will be registered in global object.
+			 */
+			_exec: function () {
+				var meta = queue.pop();
+
+				meta[0].apply(meta[1], meta[2]);
+			}
+		};
+
+	return exports;
+}());
 // Asynchronous JS file loader.
 var loader = (function () {
 	var pending = {},
@@ -220,6 +267,9 @@ var manager = (function () {
 		// id -> reversing-dependencies map.
 		hanging = {},
 
+		// raw id -> resolved id map.
+		idCache = {},
+
 		exports = {
 			/**
 			 * Compile a module.
@@ -269,7 +319,10 @@ var manager = (function () {
 					}
 
 					if (missing.length > 0) { // Load new faces.
-						this.load(missing);
+						missing = this.load(missing);
+						for (i = 0, len = missing.length; i < len; ++i) {
+							loader.load(missing[i]);
+						}
 					}
 				} else {
 					// Initialize all-dependencies-ready module.
@@ -296,7 +349,7 @@ var manager = (function () {
 					};
 
 					// Id is resolved base on current module.
-					module.dependencies = this.resolve(module, dependencies);
+					module.dependencies = this.resolve(dependencies);
 
 					if (id) { // Save named module.
 						cache[id] = module;
@@ -320,36 +373,47 @@ var manager = (function () {
 
 				// Id is resolved base on current module.
 				require = function (id) {
-					id = self.resolve(module, id);
+					id = self.resolve(id);
 					return self.require([ id ])[0];
 				};
 
 				// Id is resolved base on current module.
 				require.async = function (ids, callback) {
-					ids = self.resolve(module, ids);
+					ids = self.resolve(ids);
 					return self.use(ids, callback);
 				};
 
-				try {
-					exports = module.factory.call(null, require, exports, module);
-					if (exports) {
-						module.exports = exports;
+				// Isolate runtime error.
+				sandbox.run(function () {
+					try {
+						if (typeof module.factory === 'function') {
+							exports = module.factory.call(null, require, exports, module);
+						} else { // Factory is an literal object.
+							exports = module.factory;
+						}
+
+						if (exports) {
+							module.exports = exports;
+						}
+
+						module.status = STATUS.INITIALIZED;
+
+						// Try to initialize hanging modules
+						// which are depended on current module.
+						this.trigger(module.id);
+					} catch (err) {
+						// Rollback exports object when error occurred.
+						module.exports = null;
+						module.status = STATUS.BROKEN;
+						throw err;
 					}
-					module.status = STATUS.INITIALIZED;
-					// Try to initialize hanging modules
-					// which are depended on current module.
-					this.trigger(module.id);
-				} catch (err) {
-					// Rollback exports object when error occurred.
-					module.exports = null;
-					module.status = STATUS.BROKEN;
-					throw err;
-				}
+				}, this);
 			},
 
 			/**
 			 * Load new-face modules.
 			 * @param ids {Array}
+			 * @return {Array}
 			 */
 			load: function (ids) {
 				var len = ids.length,
@@ -359,8 +423,10 @@ var manager = (function () {
 				for (; i < len; ++i) {
 					id = ids[i];
 					// Load JS file with its own parameter.
-					loader.load(id + (params[id] || ''));
+					ids[i] = id + (params[id] || '');
 				}
+
+				return ids;
 			},
 
 			/**
@@ -391,11 +457,10 @@ var manager = (function () {
 
 			/**
 			 * Resolve id based on current module.
-			 * @param currentModule {Object}
 			 * @param ids {Array|string}
 			 * @return {Array|string}
 			 */
-			resolve: function (currentModule, ids) {
+			resolve: function (ids) {
 				var i, len, id, re, search,
 					single = false;
 
@@ -407,6 +472,11 @@ var manager = (function () {
 				for (i = 0, len = ids.length; i < len; ++i) {
 					id = ids[i];
 
+					if (idCache[id]) { // Use cached result.
+						ids[i] = idCache[id];
+						continue;
+					}
+
 					// Resolve alias.
 					if (id.charAt(0) === '#') {
 						id = id.substring(1);
@@ -416,10 +486,13 @@ var manager = (function () {
 						id = id.join('/');
 					}
 
+					// Resolve variable.
+					id = id.replace(/\{(\w+)\}/g, function (all, name) {
+						return config.vars[name] || all;
+					});
+
 					// Generate URI.
-					if (id.charAt(0) === '.') { // Related to current module.
-						id = currentModule.id.replace(PATTERN_FILENAME, id);
-					} else if (!PATTERN_PROTOCOL.test(id)) { // Related to base.
+					if (!PATTERN_PROTOCOL.test(id)) { // Related to base.
 						id = config.base + id;
 					}
 
@@ -443,7 +516,7 @@ var manager = (function () {
 						params[id] = search;
 					}
 
-					ids[i] = id;
+					ids[i] = idCache[ids[i]] = id;
 				}
 
 				return single ? ids[0] : ids;
@@ -454,29 +527,15 @@ var manager = (function () {
 			 * @param id {string}
 			 */
 			trigger: function (id) {
-				var self = this,
-					next;
+				var meta;
 
 				if (typeof hanging[id] === 'object') { // Has hanging modules of current id.
-					next = function () {
-						var meta;
-
-						if (hanging[id].length > 0) {
-							meta = hanging[id].shift();
-
-							// Trigger next step before possible runtime error occurs.
-							setTimeout(next, 0);
-
-							if (--meta.count === 0) { // All depenencies ready.
-								self.initialize(meta.module);
-							}
-						} else {
-							delete hanging[id];
+					while (meta = hanging[id].shift()) {
+						if (--meta.count === 0) { // All depenencies ready.
+							this.initialize(meta.module);
 						}
-					};
-					// Execute asynchronously to isolate possible runtime error
-					// in module factory.
-					setTimeout(next, 0);
+					}
+					delete hanging[id];
 				}
 			},
 
@@ -486,19 +545,29 @@ var manager = (function () {
 			 * @param callback {Function}
 			 */
 			use: function (ids, callback) {
-				var self = this;
+				var self = this,
+					use = function () {
+						// Using modules equals initializing an anonymous module
+						// which depended on used modules.
+						self.compile(self.define(null, ids, function () {
+							if (callback) {
+								callback.apply(null, self.require(ids));
+							}
+						}));
+					};
 
 				if (typeof ids === 'string') {
 					ids = [ ids ];
 				}
 
-				// Using modules equals initializing an anonymous module
-				// which depended on used modules.
-				this.compile(this.define(null, ids, function () {
-					if (callback) {
-						callback.apply(null, self.require(ids));
-					}
-				}));
+				if (config.preload.length > 0) { // Need preloading.
+					this.compile(this.define(null, config.preload, function () {
+						config.preload = [];
+						use();
+					}));
+				} else {
+					use();
+				}
 			}
 		};
 
@@ -587,14 +656,12 @@ var aspect = (function () {
 
 // Prepare public APIs.
 (function () {
-	var mainModule = { // Main module for resolving id written in inline script.
-			dependencies: [],
-			exports: null,
-			factory: function () {},
-			id: location.href
-		},
+	var	exports = {
+			/**
+			 * Sandbox trigger
+			 */
+			_exec: sandbox._exec,
 
-		exports = {
 			/**
 			 * Add a tail handler to a manager object member function.
 			 * @param fnName {string}
@@ -628,7 +695,7 @@ var aspect = (function () {
 			 * @param callback {Function}
 			 */
 			use: function (ids, callback) {
-				ids = manager.resolve(mainModule, ids);
+				ids = manager.resolve(ids);
 				manager.use(ids, callback);
 			}
 		};
@@ -643,7 +710,7 @@ var aspect = (function () {
 	 * @param factory {Function}
 	 */
 	GLOBAL.define = function (id, dependencies, factory) {
-		id = manager.resolve(mainModule, id);
+		id = manager.resolve(id);
 		manager.define(id, dependencies, factory);
 	};
 }());

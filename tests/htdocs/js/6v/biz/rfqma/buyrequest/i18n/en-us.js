@@ -1,0 +1,1 @@
+define("js/6v/biz/rfqma/buyrequest/i18n/en-us.js",[], function () {});

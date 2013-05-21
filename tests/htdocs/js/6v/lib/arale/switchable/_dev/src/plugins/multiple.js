@@ -1,0 +1,1 @@
+define("js/6v/lib/arale/switchable/_dev/src/plugins/multiple.js",[], function () {});

@@ -1,13 +1,11 @@
 // Prepare public APIs.
 (function () {
-	var mainModule = { // Main module for resolving id written in inline script.
-			dependencies: [],
-			exports: null,
-			factory: function () {},
-			id: location.href
-		},
+	var	exports = {
+			/**
+			 * Sandbox trigger
+			 */
+			_exec: sandbox._exec,
 
-		exports = {
 			/**
 			 * Add a tail handler to a manager object member function.
 			 * @param fnName {string}
@@ -41,7 +39,7 @@
 			 * @param callback {Function}
 			 */
 			use: function (ids, callback) {
-				ids = manager.resolve(mainModule, ids);
+				ids = manager.resolve(ids);
 				manager.use(ids, callback);
 			}
 		};
@@ -56,7 +54,7 @@
 	 * @param factory {Function}
 	 */
 	GLOBAL.define = function (id, dependencies, factory) {
-		id = manager.resolve(mainModule, id);
+		id = manager.resolve(id);
 		manager.define(id, dependencies, factory);
 	};
 }());

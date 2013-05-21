@@ -1,0 +1,1 @@
+define("js/6v/lib/arale/switchable/_dev/src/plugins/circular.js",["js/6v/lib/gallery/jquery/jquery.js","js/6v/lib/arale/switchable/_dev/src/plugins/effects.js"], function () {});

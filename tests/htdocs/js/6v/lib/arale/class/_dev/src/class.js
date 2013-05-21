@@ -1,0 +1,1 @@
+define("js/6v/lib/arale/class/_dev/src/class.js",[], function () {});

@@ -15,6 +15,7 @@
 				<file name="_head.js" />
 				<file name="config.js" />
 				<file name="util.js" />
+				<file name="sandbox.js" />
 				<file name="loader.js" />
 				<file name="manager.js" />
 				<file name="aspect.js" />
@@ -23,9 +24,9 @@
 			</filelist>
 		</concat>
 		
-		<concat destfile="${build.dir}/plugin-combo.js" encoding="UTF-8" fixlastline="true">
+		<concat destfile="${build.dir}/plugin-unicorn.js" encoding="UTF-8" fixlastline="true">
 			<filelist dir="${src.dir}/plugins">
-				<file name="plugin-combo.js" />
+				<file name="plugin-unicorn.js" />
 			</filelist>
 		</concat>
 		

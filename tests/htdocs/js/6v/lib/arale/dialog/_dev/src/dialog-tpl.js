@@ -1,0 +1,1 @@
+define("js/6v/lib/arale/dialog/_dev/src/dialog-tpl.js",[], function () {});
